@@ -45,16 +45,29 @@ function lcm(arr){
   return arr.reduce((a, b) => (a * b) / gcd(a, b));
 }
 async function askAI(question) {
+  if (typeof question !== "string" || question.trim() === "") {
+    throw new Error("AI input must be a non-empty string");
+  }
+
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
+    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   const response = await axios.post(url, {
-    contents: [{ parts: [{ text: question }] }]
+    contents: [
+      {
+        parts: [{ text: question }]
+      }
+    ]
   });
 
-  return response.data.candidates[0].content.parts[0].text
-    .split(" ")[0];
+  const text =
+    response.data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) throw new Error("No AI response");
+
+  return text.trim().split(/\s+/)[0];
 }
+
 app.post("/bfhl", async (req, res) => {
   try {
     const body = req.body;
@@ -90,8 +103,17 @@ app.post("/bfhl", async (req, res) => {
         break;
 
       case "AI":
-        data = await askAI(body.AI);
-        break;
+  try {
+    data = await askAI(body.AI);
+  } catch (e) {
+    return res.status(502).json({
+      is_success: false,
+      official_email: EMAIL,
+      error: "AI service unavailable"
+    });
+  }
+  break;
+
 
       default:
         return res.status(400).json({
@@ -115,7 +137,8 @@ app.post("/bfhl", async (req, res) => {
     });
   }
 });
+const PORT = process.env.PORT || 3000;
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
